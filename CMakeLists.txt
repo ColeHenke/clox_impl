@@ -7,4 +7,5 @@ add_executable(clox_impl main.c
         chunk.c
         memory.c
         debug.c
-        value.c)
+        value.c
+        vm.c)
