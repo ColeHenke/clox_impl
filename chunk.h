@@ -8,6 +8,11 @@
 typedef enum {
   // two bytes - opcode and constant index
   OP_CONSTANT,
+  OP_ADD,
+  OP_SUBTRACT,
+  OP_MULTIPLY,
+  OP_DIVIDE,
+  OP_NEGATE,
   // return from current function
   // one byte - opcode
   OP_RETURN
