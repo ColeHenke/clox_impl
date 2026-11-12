@@ -29,6 +29,14 @@ typedef enum {
   PREC_PRIMARY
 } Precedence;
 
+typedef void (*ParseFn)();
+
+typedef struct {
+  ParseFn prefix;
+  ParseFn infix;
+  Precedence precedence;
+} ParseRule;
+
 Parser parser;
 
 Chunk* compilingChunk;
@@ -129,6 +137,52 @@ static void endCompiler() {
   emitReturn();
 }
 
+static void expression();
+static ParseRule* getRule(TokenType type);
+static void parsePrecedence(Precedence precedence);
+
+// clox does not cascade call higher-precedence expression types like jlox
+//    so we have this method that parses any expression at a given precedence level or higher
+static void parsePrecedence(Precedence precedence) {
+  advance();
+  // read the next token and look up the corresponding ParseRule.
+  // if there is no prefix parser, then the token must be a syntax error
+  ParseFn prefixRule = getRule(parser.previous.type)->prefix;
+  if (prefixRule == NULL) {
+    error("Expect expression.");
+    return;
+  }
+
+  // call that prefix parse function and let it do its thing. that prefix parser compiles the rest
+  //    of the prefix expression, consuming any other tokens it needs, and returns back
+  prefixRule();
+
+  while (precedence <= getRule(parser.current.type)->precedence) {
+    advance();
+    ParseFn infixRule = getRule(parser.previous.type)->infix;
+    infixRule();
+  }
+}
+
+static ParseRule* getRule(TokenType type) {
+  return &rules[type];
+}
+
+// compile the right operand, then emit the binary operation bytecode
+static void binary() {
+  TokenType operatorType = parser.previous.type;
+  ParseRule* rule = getRule(operatorType);
+  parsePrecedence((Precedence)(rule->precedence + 1));
+
+  switch (operatorType) {
+  case TOKEN_PLUS: emitByte(OP_ADD); break;
+  case TOKEN_MINUS: emitByte(OP_SUBTRACT); break;
+  case TOKEN_STAR: emitByte(OP_MULTIPLY); break;
+  case TOKEN_SLASH: emitByte(OP_DIVIDE); break;
+  default: return; // unreachable.
+  }
+}
+
 static void expression() {
   parsePrecedence(PREC_ASSIGNMENT);
 }
@@ -164,11 +218,48 @@ static void unary() {
   }
 }
 
-// clox does not cascade call higher-precedence expression types like jlox
-//    so we have this method that parses any expression at a given precedence level or higher
-static void parsePrecedence(Precedence precedence) {
-  // todo - empty
-}
+ParseRule rules[] = {
+  [TOKEN_LEFT_PAREN]    = {grouping, NULL,   PREC_NONE},
+  [TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_DOT]           = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_MINUS]         = {unary,    binary, PREC_TERM},
+  [TOKEN_PLUS]          = {NULL,     binary, PREC_TERM},
+  [TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_SLASH]         = {NULL,     binary, PREC_FACTOR},
+  [TOKEN_STAR]          = {NULL,     binary, PREC_FACTOR},
+  [TOKEN_BANG]          = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_BANG_EQUAL]    = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_EQUAL]         = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_EQUAL_EQUAL]   = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_GREATER]       = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_GREATER_EQUAL] = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_LESS]          = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_LESS_EQUAL]    = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_IDENTIFIER]    = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_STRING]        = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
+  [TOKEN_AND]           = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_FALSE]         = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_FOR]           = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_FUN]           = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_NIL]           = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_OR]            = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_THIS]          = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_TRUE]          = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_VAR]           = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_ERROR]         = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_EOF]           = {NULL,     NULL,   PREC_NONE},
+};
 
 bool compile(const char* source, Chunk* chunk) {
   initScanner(source);
