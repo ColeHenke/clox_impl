@@ -15,6 +15,20 @@ typedef struct {
   bool panicMode;
 } Parser;
 
+typedef enum {
+  PREC_NONE,
+  PREC_ASSIGNMENT,  // =
+  PREC_OR,          // or
+  PREC_AND,         // and
+  PREC_EQUALITY,    // == !=
+  PREC_COMPARISON,  // < > <= >=
+  PREC_TERM,        // + -
+  PREC_FACTOR,      // * /
+  PREC_UNARY,       // ! -
+  PREC_CALL,        // . ()
+  PREC_PRIMARY
+} Precedence;
+
 Parser parser;
 
 Chunk* compilingChunk;
@@ -94,8 +108,66 @@ static void emitReturn() {
   emitByte(OP_RETURN);
 }
 
+static uint8_t makeConstant(Value value) {
+  // add the constant to the constants array
+  int constant = addConstant(currentChunk(), value);
+
+  // since we only use one byte on the index operand for the OP_CONSTANT instruction
+  if (constant > UINT8_MAX) {
+    error("Too many constants in one chunk.");
+    return 0;
+  }
+
+  return (uint8_t)constant;
+}
+
+static void emitConstant(Value value) {
+  emitBytes(OP_CONSTANT, makeConstant(value));
+}
+
 static void endCompiler() {
   emitReturn();
+}
+
+static void expression() {
+  parsePrecedence(PREC_ASSIGNMENT);
+}
+
+// recursively call into `expression()` to compile the expression between parentheses
+static void grouping() {
+  expression();
+  // assume that the `(` has already been consumed
+  consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
+}
+
+// compile number literals
+static void number() {
+  // assume token has already been consumed and stored in `previous`
+  double value = strtod(parser.previous.start, NULL);
+  emitConstant(value);
+}
+
+static void unary() {
+  TokenType operatorType = parser.previous.type;
+
+  // compile operand
+  // this allows nested unary expressions like `!!`
+  parsePrecedence(PREC_UNARY);
+
+  // emit the operator instruction
+  // write the negate instruction after its operand’s bytecode
+  //    1. we evaluate the operand first which leaves its value on the stack.
+  //    2. then we pop that value, negate it, and push the result.
+  switch (operatorType) {
+  case TOKEN_MINUS: emitByte(OP_NEGATE); break;
+  default: return; // unreachable.
+  }
+}
+
+// clox does not cascade call higher-precedence expression types like jlox
+//    so we have this method that parses any expression at a given precedence level or higher
+static void parsePrecedence(Precedence precedence) {
+  // todo - empty
 }
 
 bool compile(const char* source, Chunk* chunk) {
