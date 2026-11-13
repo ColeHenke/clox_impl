@@ -22,6 +22,22 @@ typedef struct {
   } as; // 8 bytes
 } Value;
 
+// use these to check a Value's type before converting to a C value
+#define IS_BOOL(value)    ((value).type == VAL_BOOL)
+#define IS_NIL(value)     ((value).type == VAL_NIL)
+#define IS_NUMBER(value)  ((value).type == VAL_NUMBER)
+
+// unpack a dynamic lox Value to a static C value
+#define AS_BOOL(value)    ((value).as.boolean)
+#define AS_NUMBER(value)  ((value).as.number)
+// no AS_NIL macro because there is only one nil value, so a Value with type VAL_NIL doesn't carry any extra data.
+
+// promote a native C value to a clox Value
+// static C values to dynamic lox Values
+#define BOOL_VAL(value)   ((Value){VAL_BOOL, {.boolean = value}})
+#define NIL_VAL           ((Value){VAL_NIL, {.number = 0}})
+#define NUMBER_VAL(value) ((Value){VAL_NUMBER, {.number = value}})
+
 // stores constants found in the program
 typedef struct {
   int capacity;
