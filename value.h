@@ -3,11 +3,15 @@
 
 #include "common.h"
 
+typedef struct Obj Obj;
+typedef struct ObjString ObjString;
+
 // this is how we'll store a value's type
 typedef enum {
   VAL_BOOL,
   VAL_NIL,
   VAL_NUMBER,
+  VAL_OBJ
 } ValueType;
 
 // this will abstract how values are concretely represented in c
@@ -19,6 +23,7 @@ typedef struct {
   union {
     bool boolean;
     double number;
+    Obj* obj;
   } as; // 8 bytes
 } Value;
 
@@ -26,10 +31,12 @@ typedef struct {
 #define IS_BOOL(value)    ((value).type == VAL_BOOL)
 #define IS_NIL(value)     ((value).type == VAL_NIL)
 #define IS_NUMBER(value)  ((value).type == VAL_NUMBER)
+#define IS_OBJ(value)     ((value).type == VAL_OBJ)
 
 // unpack a dynamic lox Value to a static C value
 #define AS_BOOL(value)    ((value).as.boolean)
 #define AS_NUMBER(value)  ((value).as.number)
+#define AS_OBJ(value)     ((value).as.obj)
 // no AS_NIL macro because there is only one nil value, so a Value with type VAL_NIL doesn't carry any extra data.
 
 // promote a native C value to a clox Value
@@ -37,6 +44,7 @@ typedef struct {
 #define BOOL_VAL(value)   ((Value){VAL_BOOL, {.boolean = value}})
 #define NIL_VAL           ((Value){VAL_NIL, {.number = 0}})
 #define NUMBER_VAL(value) ((Value){VAL_NUMBER, {.number = value}})
+#define OBJ_VAL(object)   ((Value){VAL_OBJ, {.obj = (Obj*)object}})
 
 // stores constants found in the program
 typedef struct {
