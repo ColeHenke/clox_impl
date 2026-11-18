@@ -28,6 +28,8 @@ struct ObjString {
   char* chars;
 };
 
+ObjString* copyString(const char* chars, int length);
+
 // have this logic in a separate function because it uses `value` twice
 // since macros are expanded by inserting the argument expression every place the parameter name appears
 //    in the body. if a macro uses a parameter more that once, the expression is evaluated multiple times
