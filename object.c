@@ -3,6 +3,7 @@
 
 #include "memory.h"
 #include "object.h"
+#include "table.h"
 #include "value.h"
 #include "vm.h"
 
@@ -28,6 +29,10 @@ static ObjString* allocateString(char* chars, int length, uint32_t hash) {
   string->length = length;
   string->chars = chars;
   string->hash = hash;
+
+  // intern every string automatically
+  tableSet(&vm.strings, string, NIL_VAL);
+
   return string;
 }
 
@@ -49,6 +54,16 @@ static uint32_t hashString(const char* key, int length) {
 // unlike `copyString()` this takes ownership of the string given to it
 ObjString* takeString(char* chars, int length) {
   uint32_t hash = hashString(chars, length);
+
+  // look up the string in the string table first
+  ObjString* interned = tableFindString(&vm.strings, chars, length, hash);
+
+  // if found, free the memory for the passed in string
+  if (interned != NULL) {
+    FREE_ARRAY(char, chars, length + 1);
+    return interned;
+  }
+
   return allocateString(chars, length, hash);
 }
 
@@ -58,6 +73,12 @@ ObjString* takeString(char* chars, int length) {
 // assumes that it cannot take ownership of the characters passed in
 ObjString* copyString(const char* chars, int length) {
   uint32_t hash = hashString(chars, length);
+
+  // look up the string in the string table first
+  ObjString* interned = tableFindString(&vm.strings, chars, length, hash);
+
+  // return a reference to the string if found
+  if (interned != NULL) return interned;
 
   // allocate space for a new array on the heap
   char* heapChars = ALLOCATE(char, length + 1);

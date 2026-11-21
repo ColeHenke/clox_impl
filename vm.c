@@ -57,9 +57,14 @@ void initVM() {
 
   // no allocated objects on vm start
   vm.objects = NULL;
+
+  // no string interned yet upon vm creation
+  initTable(&vm.strings);
 }
 
 void freeVM() {
+  // no more need for interned strings
+  freeTable(&vm.strings);
   freeObjects();
 }
 
