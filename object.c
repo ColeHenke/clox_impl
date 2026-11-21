@@ -25,9 +25,15 @@ static ObjString* allocateString(char* chars, int length) {
   return string;
 }
 
+// unlike `copyString()` this takes ownership of the string given to it
+ObjString* takeString(char* chars, int length) {
+  return allocateString(chars, length);
+}
+
 // ObjString can't point back to the original characters in the source string
 // some ObjString's are created dynamically at runtime and thus memory for it must be freed when it's no longer needed
 // even string literals are added to the heap
+// assumes that it cannot take ownership of the characters passed in
 ObjString* copyString(const char* chars, int length) {
   // allocate space for a new array on the heap
   char* heapChars = ALLOCATE(char, length + 1);
@@ -37,4 +43,12 @@ ObjString* copyString(const char* chars, int length) {
   heapChars[length] = '\0'; // we need to terminate the string ourselves b/c the lexeme points at a range of
                             // chars inside a monolithic source string that isn't terminated
   return allocateString(heapChars, length);
+}
+
+void printObject(Value value) {
+  switch (OBJ_TYPE(value)) {
+  case OBJ_STRING:
+    printf("%s", AS_CSTRING(value));
+    break;
+  }
 }

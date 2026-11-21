@@ -28,7 +28,9 @@ struct ObjString {
   char* chars;
 };
 
+ObjString* takeString(char* chars, int length);
 ObjString* copyString(const char* chars, int length);
+void printObject(Value value);
 
 // have this logic in a separate function because it uses `value` twice
 // since macros are expanded by inserting the argument expression every place the parameter name appears
