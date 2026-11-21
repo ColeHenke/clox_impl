@@ -20,6 +20,8 @@ typedef enum {
 
 struct Obj {
   ObjType type;
+  // points to the next Obj in the chain
+  struct Obj* next;
 };
 
 struct ObjString {

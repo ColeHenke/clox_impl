@@ -14,6 +14,11 @@
 static Obj* allocateObject(size_t size, ObjType type) {
   Obj* object = (Obj*)reallocate(NULL, 0, size);
   object->type = type;
+
+  // insert an Obj to the intrusive list
+  object->next = vm.objects;
+  vm.objects = object;
+
   return object;
 }
 

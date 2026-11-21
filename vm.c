@@ -54,10 +54,13 @@ static void concatenate() {
 
 void initVM() {
   resetStack();
+
+  // no allocated objects on vm start
+  vm.objects = NULL;
 }
 
 void freeVM() {
-
+  freeObjects();
 }
 
 static InterpretResult run() {
