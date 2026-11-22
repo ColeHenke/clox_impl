@@ -57,12 +57,14 @@ void initVM() {
 
   // no allocated objects on vm start
   vm.objects = NULL;
+  initTable(&vm.globals);
 
   // no string interned yet upon vm creation
   initTable(&vm.strings);
 }
 
 void freeVM() {
+  freeTable(&vm.globals);
   // no more need for interned strings
   freeTable(&vm.strings);
   freeObjects();
@@ -73,6 +75,10 @@ static InterpretResult run() {
 
 // reads the next byte from the bytecode and looks up the corresponding value in the chunk's constant table
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
+
+// reads a one-byte operand from he bytecode chunk
+// that gets treated as an index into the chunk's constant table and returns a string at that index
+#define READ_STRING() AS_STRING(READ_CONSTANT())
 #define BINARY_OP(valueType, op) \
   do { \
   if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
@@ -115,6 +121,12 @@ static InterpretResult run() {
     case OP_POP:
       pop();
       break;
+    case OP_DEFINE_GLOBAL: {
+      ObjString* name = READ_STRING();
+      tableSet(&vm.globals, name, peek(0));
+      pop();
+      break;
+    }
     case OP_EQUAL: {
       Value b = pop();
       Value a = pop();
@@ -174,6 +186,7 @@ static InterpretResult run() {
   }
 #undef READ_BYTE
 #undef READ_CONSTANT
+#undef READ_STRING
 #undef BINARY_OP
 }
 

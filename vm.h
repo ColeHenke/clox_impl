@@ -14,6 +14,8 @@ typedef struct {
   Value stack[STACK_MAX];
   Value* stackTop;
 
+  // globals must persist as long as the program runs, so store them in the vm
+  Table globals;
   Table strings;
 
   // pointer to head of intrusive list

@@ -188,6 +188,23 @@ static void parsePrecedence(Precedence precedence) {
   }
 }
 
+// output bytecode instructions that defines the new var and stores its initial value
+// the index of the variable name in the constant table is the instruction's operand
+static void defineVariable(uint8_t global) {
+  emitBytes(OP_DEFINE_GLOBAL, global);
+}
+
+// takes a token and adds its lexeme to the chunk's constant table as a string
+static uint8_t identifierConstant(Token* name) {
+  return makeConstant(OBJ_VAL(copyString(name->start, name->length)));
+}
+
+// requires the next token to be an identifier
+static uint8_t parseVariable(const char* errorMessage) {
+  consume(TOKEN_IDENTIFIER, errorMessage);
+  return identifierConstant(&parser.previous);
+}
+
 static ParseRule* getRule(TokenType type) {
   return &rules[type];
 }
@@ -224,6 +241,20 @@ static void literal() {
 
 static void expression() {
   parsePrecedence(PREC_ASSIGNMENT);
+}
+
+static void varDeclaration() {
+  uint8_t global = parseVariable("Expect variable name.");
+
+  if (match(TOKEN_EQUAL)) {
+    expression();
+  } else {
+    emitByte(OP_NIL);
+  }
+  consume(TOKEN_SEMICOLON,
+          "Expect ';' after variable declaration.");
+
+  defineVariable(global);
 }
 
 static void expressionStatement() {
@@ -271,7 +302,11 @@ static void statement();
 static void declaration();
 
 static void declaration() {
-  statement();
+  if (match(TOKEN_VAR)) {
+    varDeclaration();
+  } else {
+    statement();
+  }
 
   if (parser.panicMode)
     synchronize();
