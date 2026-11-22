@@ -137,6 +137,22 @@ static InterpretResult run() {
       pop();
       break;
     }
+    case OP_SET_GLOBAL: {
+      ObjString* name = READ_STRING();
+
+      // setting a var doesn't pop a value from the stack
+      // since assignment is an expression, the value needs to stay there in case the assignment is nested in
+      //    a larger expression
+      if (tableSet(&vm.globals, name, peek(0))) {
+        // remove zombie value from the table
+        tableDelete(&vm.globals, name);
+
+        // if var doesn't exist, error - implicit var declaration is not allowed
+        runtimeError("Undefined variable '%s'.", name->chars);
+        return INTERPRET_RUNTIME_ERROR;
+      }
+      break;
+    }
     case OP_EQUAL: {
       Value b = pop();
       Value a = pop();

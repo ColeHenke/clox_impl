@@ -33,7 +33,7 @@ typedef enum {
   PREC_PRIMARY
 } Precedence;
 
-typedef void (*ParseFn)();
+typedef void (*ParseFn)(bool canAssign);
 
 typedef struct {
   ParseFn prefix;
@@ -177,14 +177,21 @@ static void parsePrecedence(Precedence precedence) {
     return;
   }
 
+  // allow assigment only in top level expressions or when parsing and assignment expression
+  bool canAssign = precedence <= PREC_ASSIGNMENT;
+
   // call that prefix parse function and let it do its thing. that prefix parser compiles the rest
   //    of the prefix expression, consuming any other tokens it needs, and returns back
-  prefixRule();
+  prefixRule(canAssign);
 
   while (precedence <= getRule(parser.current.type)->precedence) {
     advance();
     ParseFn infixRule = getRule(parser.previous.type)->infix;
-    infixRule();
+    infixRule(canAssign);
+  }
+
+  if (canAssign && match(TOKEN_EQUAL)) {
+    error("Invalid assignment target.");
   }
 }
 
@@ -210,7 +217,7 @@ static ParseRule* getRule(TokenType type) {
 }
 
 // compile the right operand, then emit the binary operation bytecode
-static void binary() {
+static void binary(bool canAssign) {
   TokenType operatorType = parser.previous.type;
   ParseRule* rule = getRule(operatorType);
   parsePrecedence((Precedence)(rule->precedence + 1));
@@ -230,7 +237,7 @@ static void binary() {
   }
 }
 
-static void literal() {
+static void literal(bool canAssign) {
   switch (parser.previous.type) {
   case TOKEN_FALSE: emitByte(OP_FALSE); break;
   case TOKEN_NIL: emitByte(OP_NIL); break;
@@ -322,35 +329,43 @@ static void statement() {
 }
 
 // recursively call into `expression()` to compile the expression between parentheses
-static void grouping() {
+static void grouping(bool canAssign) {
   expression();
   // assume that the `(` has already been consumed
   consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
 
 // compile number literals
-static void number() {
+static void number(bool canAssign) {
   // assume token has already been consumed and stored in `previous`
   double value = strtod(parser.previous.start, NULL);
   emitConstant(NUMBER_VAL(value));
 }
 
-static void string() {
+static void string(bool canAssign) {
   // this is where any escape character support should go
   // + 1 and - 2 bounds trim the leading and trailing quotes
   emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
 }
 
-static void namedVariable(Token name) {
+static void namedVariable(Token name, bool canAssign) {
   uint8_t arg = identifierConstant(&name);
-  emitBytes(OP_GET_GLOBAL, arg);
+
+  if (canAssign && match(TOKEN_EQUAL)) {
+    // if the token after an identifier expression is an equal sign, then we compile the assigned value
+    //    and emit and assignment instruction
+    expression();
+    emitBytes(OP_SET_GLOBAL, arg);
+  } else {
+    emitBytes(OP_GET_GLOBAL, arg);
+  }
 }
 
-static void variable() {
-  namedVariable(parser.previous);
+static void variable(bool canAssign) {
+  namedVariable(parser.previous, canAssign);
 }
 
-static void unary() {
+static void unary(bool canAssign) {
   TokenType operatorType = parser.previous.type;
 
   // compile operand
