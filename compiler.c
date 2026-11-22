@@ -105,6 +105,19 @@ static void consume(TokenType type, const char* message) {
   errorAtCurrent(message);
 }
 
+// check token type against current token
+// return true if they match, false otherwise
+static bool check(TokenType type) {
+  return parser.current.type == type;
+}
+
+// if the current token has the given type, consume and return true - otherwise return false
+static bool match(TokenType type) {
+  if (!check(type)) return false;
+  advance();
+  return true;
+}
+
 // add a single byte to the chunk - could be an opcode or an operand
 static void emitByte(uint8_t byte) {
   // pass the previous line as well so token errors are associated with that line
@@ -213,6 +226,66 @@ static void expression() {
   parsePrecedence(PREC_ASSIGNMENT);
 }
 
+static void expressionStatement() {
+  expression();
+  consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
+  emitByte(OP_POP);
+}
+
+// compile the rest of the print statement once detected
+static void printStatement() {
+  expression();
+  consume(TOKEN_SEMICOLON, "Expect ';' after value.");
+  emitByte(OP_PRINT);
+}
+
+// skip tokens indiscriminately until reaching a statement boundary
+// find the boundary by looking for a preceding token that can end a statement or look for a subsequent token that
+//    starts a statement
+static void synchronize() {
+  parser.panicMode = false;
+
+  while (parser.current.type != TOKEN_EOF) {
+    if (parser.previous.type == TOKEN_SEMICOLON)
+      return;
+    switch (parser.current.type) {
+    case TOKEN_CLASS:
+    case TOKEN_FUN:
+    case TOKEN_VAR:
+    case TOKEN_FOR:
+    case TOKEN_IF:
+    case TOKEN_WHILE:
+    case TOKEN_PRINT:
+    case TOKEN_RETURN:
+      return;
+
+    default:
+      ; // do nothing.
+    }
+
+    advance();
+  }
+}
+
+static void statement();
+static void declaration();
+
+static void declaration() {
+  statement();
+
+  if (parser.panicMode)
+    synchronize();
+}
+
+static void statement() {
+  if (match(TOKEN_PRINT)) {
+    printStatement();
+  } else {
+    expressionStatement();
+  }
+
+}
+
 // recursively call into `expression()` to compile the expression between parentheses
 static void grouping() {
   expression();
@@ -302,8 +375,12 @@ bool compile(const char* source, Chunk* chunk) {
   parser.panicMode = false;
 
   advance();
-  expression();
-  consume(TOKEN_EOF, "Expect end of expression");
+
+  // compile declarations until we hit the end of a source file
+  while (!match(TOKEN_EOF)) {
+    declaration();
+  }
+
   endCompiler();
   return !parser.hadError;
 }
