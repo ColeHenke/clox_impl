@@ -185,6 +185,16 @@ static void endCompiler() {
 #endif
 }
 
+// enter a new local scope
+static void beginScope() {
+  current->scopeDepth++;
+}
+
+// exit a scope
+static void endScope() {
+  current->scopeDepth--;
+}
+
 static void expression();
 static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
@@ -274,6 +284,16 @@ static void expression() {
   parsePrecedence(PREC_ASSIGNMENT);
 }
 
+// parse the rest of the block after consuming the initial curly brace
+static void block() {
+  // keep parsing until a closing brace is found
+  while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
+    declaration();
+  }
+
+  consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+}
+
 static void varDeclaration() {
   uint8_t global = parseVariable("Expect variable name.");
 
@@ -346,6 +366,10 @@ static void declaration() {
 static void statement() {
   if (match(TOKEN_PRINT)) {
     printStatement();
+  } else if (match(TOKEN_LEFT_BRACE)) {
+    beginScope();
+    block();
+    endScope();
   } else {
     expressionStatement();
   }
