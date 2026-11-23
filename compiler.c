@@ -4,6 +4,8 @@
 #include "common.h"
 #include "compiler.h"
 
+#include <string.h>
+
 #include "scanner.h"
 
 #ifdef DEBUG_PRINT_CODE
@@ -193,6 +195,12 @@ static void beginScope() {
 // exit a scope
 static void endScope() {
   current->scopeDepth--;
+
+  // remove the the variables that are declared in the scope being ended
+  while (current->localCount > 0 && current->locals[current->localCount - 1].depth > current->scopeDepth) {
+    emitByte(OP_POP);
+    current->localCount--;
+  }
 }
 
 static void expression();
@@ -232,6 +240,11 @@ static void parsePrecedence(Precedence precedence) {
 // output bytecode instructions that defines the new var and stores its initial value
 // the index of the variable name in the constant table is the instruction's operand
 static void defineVariable(uint8_t global) {
+  // no code to create a local variable at runtime - it already there as a temporary which becomes the local variable
+  if (current->scopeDepth > 0) {
+    return;
+  }
+
   emitBytes(OP_DEFINE_GLOBAL, global);
 }
 
@@ -240,9 +253,59 @@ static uint8_t identifierConstant(Token* name) {
   return makeConstant(OBJ_VAL(copyString(name->start, name->length)));
 }
 
+// check if two identifiers are the same
+static bool identifiersEqual(Token* a, Token* b) {
+  if (a->length != b->length) return false;
+  return memcmp(a->start, b->start, a->length) == 0;
+}
+
+// add a local to the compiler's list of variables in the current scope
+static void addLocal(Token name) {
+  // can only support 256 local in scope at onc, so error is more than that are going to be added
+  if (current->localCount == UINT8_COUNT) {
+    error("Too many local variables in function.");
+    return;
+  }
+
+  // initialize the next available local in the compiler's array of variables
+  Local* local = &current->locals[current->localCount++];
+
+  // store the variable name and the depth of the scope that owns the variable
+  local->name = name;
+  local->depth = current->scopeDepth;
+}
+
+// record the existence of a local variable
+static void declareVariable() {
+  // if in global scope, just bail
+  if (current->scopeDepth == 0) return;
+
+  Token* name = &parser.previous;
+
+  // look backwards to see if a variable is declared in the same scope more than once
+  for (int i = current->localCount - 1; i >= 0; i--) {
+    Local* local = &current->locals[i];
+    if (local->depth != -1 && local->depth < current->scopeDepth) {
+      break;
+    }
+
+    if (identifiersEqual(name, &local->name)) {
+      error("Already a variable with this name in this scope.");
+    }
+  }
+
+  addLocal(*name);
+}
+
 // requires the next token to be an identifier
 static uint8_t parseVariable(const char* errorMessage) {
   consume(TOKEN_IDENTIFIER, errorMessage);
+
+  declareVariable();
+  // locals aren't hooked up by name - no need to add the variable name into the constant table
+  // if in a local scope return a dummy index var instead
+  if (current->scopeDepth > 0) return 0;
+
   return identifierConstant(&parser.previous);
 }
 
